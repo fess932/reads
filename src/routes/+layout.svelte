@@ -1,5 +1,6 @@
 <script lang="ts">
     import TitleBar from "$lib/TitleBar.svelte";
+    import PlayerBar from "$lib/PlayerBar.svelte";
 
     let { children } = $props();
 </script>
@@ -9,6 +10,7 @@
     <div class="page-content">
         {@render children()}
     </div>
+    <PlayerBar />
 </div>
 
 <style>
@@ -35,5 +37,6 @@
     .page-content {
         flex: 1;
         overflow: auto;
+        min-height: 0;
     }
 </style>

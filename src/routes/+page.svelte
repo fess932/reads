@@ -1,156 +1,121 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
-
-  let name = $state("");
-  let greetMsg = $state("");
-
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
-  }
+    import { goto } from "$app/navigation";
+    import { books } from "$lib/books";
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+<div class="library">
+    <p class="subtitle">Аудиокниги</p>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
-  </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
-
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+    <div class="grid">
+        {#each books as book}
+            <button class="card" onclick={() => goto(`/book/${book.id}`)}>
+                <div class="cover" style="background: {book.cover}">
+                    <span class="year">{book.year}</span>
+                </div>
+                <div class="info">
+                    <span class="title">{book.title}</span>
+                    <span class="author">{book.author}</span>
+                </div>
+            </button>
+        {/each}
+    </div>
+</div>
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
+    .library {
+        padding: 24px;
+        height: 100%;
+        overflow-y: auto;
+    }
 
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
+    .subtitle {
+        font-family: system-ui, sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #79747e;
+        margin-bottom: 20px;
+    }
 
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+        gap: 16px;
+    }
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+    .card {
+        background: #fff;
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+        cursor: pointer;
+        text-align: left;
+        padding: 0;
+        box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.1),
+            0 1px 2px rgba(0, 0, 0, 0.06);
+        transition:
+            box-shadow 0.2s,
+            transform 0.2s;
+    }
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
+    .card:hover {
+        box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.12),
+            0 2px 6px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+    }
 
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
+    .card:active {
+        transform: translateY(0);
+        box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.1),
+            0 1px 2px rgba(0, 0, 0, 0.06);
+    }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
+    .cover {
+        aspect-ratio: 2 / 3;
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        padding: 8px;
+        border-radius: 12px 12px 0 0;
+    }
 
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
+    .year {
+        font-family: system-ui, sans-serif;
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.6);
+        font-weight: 500;
+    }
 
-.row {
-  display: flex;
-  justify-content: center;
-}
+    .info {
+        padding: 10px 12px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
+    .title {
+        font-family: system-ui, sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1c1b1f;
+        line-height: 1.35;
+        min-height: calc(1.35em * 2);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
 
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
-
-  a:hover {
-    color: #24c8db;
-  }
-
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
-  }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
-
+    .author {
+        font-family: system-ui, sans-serif;
+        font-size: 11px;
+        color: #79747e;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 </style>
