@@ -1,11 +1,19 @@
 <script lang="ts">
+    import { onMount } from "svelte";
     import TitleBar from "$lib/TitleBar.svelte";
     import PlayerBar from "$lib/PlayerBar.svelte";
+    import { initLibrary } from "$lib/libraryStore.svelte";
+    import { settings, initSettings, fontSizeVars } from "$lib/settings.svelte";
 
     let { children } = $props();
+
+    onMount(() => {
+        initSettings();
+        initLibrary();
+    });
 </script>
 
-<div class="app-shell">
+<div class="app-shell" style={fontSizeVars(settings.fontSize)}>
     <TitleBar />
     <div class="page-content">
         {@render children()}

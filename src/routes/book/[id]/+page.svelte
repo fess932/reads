@@ -14,6 +14,13 @@
     function isPlayingChapter(index: number) {
         return isActive(index) && player.isPlaying;
     }
+
+    function isDone(index: number): boolean {
+        const dur = book.chapters[index].duration;
+        if (!dur) return false;
+        const prog = player.chapterProgress[`${book.id}_${index}`] ?? 0;
+        return prog / dur >= 0.95;
+    }
 </script>
 
 <div class="page">
@@ -45,9 +52,18 @@
             <button
                 class="chapter-row"
                 class:active={isActive(i)}
+                class:done={isDone(i)}
                 onclick={() => playChapter(book, i)}
             >
-                <span class="chapter-num">{chapter.id}</span>
+                <span class="chapter-num">
+                    {#if isDone(i)}
+                        <svg class="check-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                    {:else}
+                        {chapter.id}
+                    {/if}
+                </span>
                 <span class="chapter-title">{chapter.title}</span>
                 <span class="chapter-dur">{formatTime(chapter.duration)}</span>
                 {#if isPlayingChapter(i)}
@@ -113,7 +129,7 @@
     }
 
     .book-title {
-        font-size: 15px;
+        font-size: var(--text-lg);
         font-weight: 600;
         color: #1c1b1f;
         line-height: 1.3;
@@ -123,19 +139,19 @@
     }
 
     .book-author {
-        font-size: 13px;
+        font-size: var(--text-md);
         color: #49454f;
     }
 
     .book-sub {
-        font-size: 12px;
+        font-size: var(--text-sm);
         color: #79747e;
         margin-top: 2px;
     }
 
     /* ── Chapter list ─── */
     .section-label {
-        font-size: 11px;
+        font-size: var(--text-xs);
         font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -165,7 +181,7 @@
     .chapter-row.active { background: #ede7f6; }
 
     .chapter-num {
-        font-size: 12px;
+        font-size: var(--text-sm);
         font-weight: 600;
         color: #79747e;
         width: 20px;
@@ -175,9 +191,19 @@
 
     .chapter-row.active .chapter-num { color: #5c6bc0; }
 
+    .chapter-row.done .chapter-num { color: #43a047; }
+    .chapter-row.done .chapter-title { color: #79747e; }
+    .chapter-row.done .chapter-dur  { color: #b0b0b0; }
+
+    .check-icon {
+        width: 15px;
+        height: 15px;
+        display: block;
+    }
+
     .chapter-title {
         flex: 1;
-        font-size: 14px;
+        font-size: var(--text-base);
         color: #1c1b1f;
         line-height: 1.4;
         white-space: nowrap;
@@ -191,7 +217,7 @@
     }
 
     .chapter-dur {
-        font-size: 12px;
+        font-size: var(--text-sm);
         color: #79747e;
         flex-shrink: 0;
         font-variant-numeric: tabular-nums;
