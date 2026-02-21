@@ -7,9 +7,9 @@
 
     let { children } = $props();
 
-    onMount(() => {
-        initSettings();
-        initLibrary();
+    onMount(async () => {
+        await initSettings();
+        await initLibrary();
     });
 </script>
 

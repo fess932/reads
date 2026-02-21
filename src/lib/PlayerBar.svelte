@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount, onDestroy } from "svelte";
+    import { onMount, onDestroy, untrack } from "svelte";
     import { player, togglePlay, skipPrev, skipNext, savePlayerState, updateProgress } from "./player.svelte";
     import { formatTime } from "./books";
     import { convertFileSrc } from "@tauri-apps/api/core";
@@ -8,6 +8,9 @@
     let isScrubbing = false;
     let mockTimer: ReturnType<typeof setInterval> | undefined;
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    // Позиция, захваченная ДО audioEl.load() — чтобы сброс currentTime=0
+    // браузером не перезаписал player.progress до onLoadedMetadata
+    let pendingSeek: number | null = null;
 
     let currentChapter = $derived(
         player.book ? player.book.chapters[player.currentIndex] : null
@@ -17,6 +20,9 @@
     // ── Эффект 1: смена главы/книги → загрузить новый src
     $effect(() => {
         if (!audioEl || !currentChapter?.filePath) return;
+        // untrack: читаем progress без подписки, иначе каждое обновление прогресса
+        // перезапускало бы load() и сбрасывало воспроизведение в начало
+        pendingSeek = untrack(() => player.progress);
         audioEl.src = convertFileSrc(currentChapter.filePath);
         audioEl.load();
         // seek + play происходит в onLoadedMetadata ниже
@@ -26,7 +32,7 @@
     $effect(() => {
         if (!audioEl || !hasRealAudio) return;
         if (player.isPlaying) {
-            audioEl.play().catch(() => {});
+            audioEl.play().catch((e) => console.error("[player] play failed:", e));
         } else {
             audioEl.pause();
         }
@@ -50,7 +56,7 @@
     $effect(() => {
         player.progress; player.currentIndex; player.book; player.volume;
         clearTimeout(saveTimer);
-        saveTimer = setTimeout(savePlayerState, 2000);
+        saveTimer = setTimeout(savePlayerState, 500);
     });
 
     function onTimeUpdate() {
@@ -60,8 +66,10 @@
     function onLoadedMetadata() {
         if (!audioEl || !player.book) return;
         player.book.chapters[player.currentIndex].duration = Math.round(audioEl.duration);
-        audioEl.currentTime = player.progress;
-        if (player.isPlaying) audioEl.play().catch(() => {});
+        const seekTo = pendingSeek ?? player.progress;
+        pendingSeek = null;
+        audioEl.currentTime = seekTo;
+        if (player.isPlaying) audioEl.play().catch((e) => console.error("[player] play failed:", e));
     }
 
     function onEnded() { skipNext(); }
@@ -92,8 +100,15 @@
         }
     }
 
-    onMount(() => window.addEventListener("keydown", onKeyDown));
-    onDestroy(() => window.removeEventListener("keydown", onKeyDown));
+    onMount(() => {
+        window.addEventListener("keydown", onKeyDown);
+        window.addEventListener("beforeunload", savePlayerState);
+    });
+    onDestroy(() => {
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("beforeunload", savePlayerState);
+        savePlayerState(); // сохранить при размонтировании компонента
+    });
 </script>
 
 <!-- Audio всегда в DOM — иначе audioEl=null в момент срабатывания эффектов при старте -->
@@ -256,7 +271,7 @@
         flex: 1;
         display: flex;
         align-items: center;
-        height: 20px;
+        height: 28px;
     }
 
     .volume-track {
@@ -269,6 +284,7 @@
         -webkit-appearance: none;
         appearance: none;
         width: 100%;
+        height: 28px; /* увеличенная область нажатия */
         background: transparent;
         outline: none;
         cursor: pointer;
@@ -277,25 +293,26 @@
     }
 
     .slider::-webkit-slider-runnable-track {
-        height: 4px;
+        height: 6px;
         background: #e0e0e0;
-        border-radius: 2px;
+        border-radius: 3px;
     }
 
     .slider::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 14px;
-        height: 14px;
+        width: 16px;
+        height: 16px;
         border-radius: 50%;
         background: #5c6bc0;
         margin-top: -5px;
         cursor: pointer;
         transition: transform 0.1s;
+        box-shadow: 0 1px 4px rgba(92, 107, 192, 0.4);
     }
 
     .slider::-webkit-slider-thumb:hover {
-        transform: scale(1.2);
+        transform: scale(1.25);
     }
 
     /* ── Controls row ─── */

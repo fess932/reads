@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import { invoke } from "@tauri-apps/api/core";
+    import { settings, setSerperApiKey } from "./settings.svelte";
 
     let {
         bookTitle,
@@ -15,135 +16,93 @@
     } = $props();
 
     interface CoverResult {
-        id: string;
         title: string;
         thumbnail: string;
         full: string;
-        source: "itunes" | "google";
     }
 
     const initialQuery = [bookTitle, bookAuthor].filter(Boolean).join(" ");
     let query = $state(initialQuery);
     let results = $state<CoverResult[]>([]);
     let loading = $state(false);
-    let selecting = $state<string | null>(null); // id картинки которую качаем
+    let selecting = $state<string | null>(null);
     let error = $state("");
 
-    // ── iTunes Search (аудиокниги + электронные книги) ────────────────────────
-    async function searchITunes(q: string): Promise<CoverResult[]> {
-        const [r1, r2] = await Promise.allSettled([
-            fetch(
-                `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=audiobook&limit=15&country=us`
-            ).then((r) => r.json()),
-            fetch(
-                `https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=ebook&limit=10&country=us`
-            ).then((r) => r.json()),
-        ]);
+    // Key management (reuse bingApiKey field for serper key)
+    let showKeyInput = $state(!settings.serperApiKey);
+    let keyDraft = $state(settings.serperApiKey);
 
-        const items = [
-            ...(r1.status === "fulfilled" ? r1.value.results ?? [] : []),
-            ...(r2.status === "fulfilled" ? r2.value.results ?? [] : []),
-        ];
-
-        return items
-            .filter((it: Record<string, unknown>) => it.artworkUrl100)
-            .map((it: Record<string, unknown>) => {
-                const art = (it.artworkUrl100 as string).replace(
-                    /\d+x\d+bb/,
-                    "600x600bb"
-                );
-                const thumb = (it.artworkUrl100 as string).replace(
-                    /\d+x\d+bb/,
-                    "300x300bb"
-                );
-                return {
-                    id: `itunes-${it.collectionId ?? it.trackId}`,
-                    title: (it.collectionName as string) ?? (it.trackName as string) ?? "",
-                    thumbnail: thumb,
-                    full: art,
-                    source: "itunes" as const,
-                };
-            });
+    function saveKey() {
+        setSerperApiKey(keyDraft);
+        showKeyInput = false;
+        if (settings.serperApiKey) search();
     }
 
-    // ── Google Books ──────────────────────────────────────────────────────────
-    async function searchGoogle(q: string): Promise<CoverResult[]> {
-        const res = await fetch(
-            `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&printType=books`
-        );
-        const data = await res.json();
-
-        return ((data.items as Record<string, unknown>[]) ?? [])
-            .filter((it) => {
-                const vi = it.volumeInfo as Record<string, unknown>;
-                const links = vi?.imageLinks as Record<string, string> | undefined;
-                return links?.thumbnail;
-            })
-            .map((it) => {
-                const vi = it.volumeInfo as Record<string, unknown>;
-                const links = vi.imageLinks as Record<string, string>;
-                const thumb = links.thumbnail.replace("http://", "https://");
-                const full = links.thumbnail
-                    .replace("http://", "https://")
-                    .replace("zoom=1", "zoom=3")
-                    .replace("&edge=curl", "");
-                return {
-                    id: `google-${it.id}`,
-                    title: (vi.title as string) ?? "",
-                    thumbnail: thumb,
-                    full,
-                    source: "google" as const,
-                };
-            });
-    }
-
-    // ── Объединённый поиск ────────────────────────────────────────────────────
+    // ── Serper.dev Image Search ───────────────────────────────────────────────
     async function search() {
         const q = query.trim();
         if (!q) return;
+        if (!settings.serperApiKey) {
+            showKeyInput = true;
+            return;
+        }
+
         loading = true;
         error = "";
         results = [];
 
-        const [itunesRes, googleRes] = await Promise.allSettled([
-            searchITunes(q),
-            searchGoogle(q),
-        ]);
+        try {
+            const res = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: {
+                    "X-API-KEY": settings.serperApiKey,
 
-        const itunes = itunesRes.status === "fulfilled" ? itunesRes.value : [];
-        const google = googleRes.status === "fulfilled" ? googleRes.value : [];
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ q, num: 20 }),
+            });
 
-        // iTunes первыми — у них лучшее качество для аудиокниг
-        const seen = new Set<string>();
-        const combined: CoverResult[] = [];
-        for (const r of [...itunes, ...google]) {
-            const key = r.title.toLowerCase().slice(0, 40);
-            if (!seen.has(key) && combined.length < 15) {
-                seen.add(key);
-                combined.push(r);
+            if (res.status === 401 || res.status === 403) {
+                throw new Error("Неверный API ключ");
             }
-        }
+            if (!res.ok) {
+                throw new Error(`Ошибка сервера: ${res.status}`);
+            }
 
-        results = combined;
-        if (results.length === 0) {
-            error =
-                itunesRes.status === "rejected" && googleRes.status === "rejected"
-                    ? "Ошибка подключения к интернету"
-                    : "Ничего не найдено. Попробуйте другой запрос.";
+            const data = await res.json();
+            results = ((data.images ?? []) as Record<string, string>[])
+                .filter((it) => it.imageUrl && it.thumbnailUrl)
+                .slice(0, 18)
+                .map((it) => ({
+                    title: it.title ?? "",
+                    thumbnail: it.thumbnailUrl,
+                    full: it.imageUrl,
+                }));
+
+            if (results.length === 0) error = "Ничего не найдено. Попробуйте другой запрос.";
+        } catch (e) {
+            error = e instanceof Error ? e.message : String(e);
+        } finally {
+            loading = false;
         }
-        loading = false;
     }
 
-    // ── Скачать обложку через Rust (обходит CORS) ─────────────────────────────
+    // ── Скачать через Rust (обходит CORS) ─────────────────────────────────────
     async function pickCover(r: CoverResult) {
-        selecting = r.id;
+        selecting = r.full;
         error = "";
         try {
             const dataUrl = await invoke<string>("download_image", { url: r.full });
             onSelect(dataUrl);
-        } catch (e) {
-            error = `Не удалось загрузить обложку: ${e}`;
-            selecting = null;
+        } catch {
+            // Если основной URL не скачался — попробуем thumbnail
+            try {
+                const dataUrl = await invoke<string>("download_image", { url: r.thumbnail });
+                onSelect(dataUrl);
+            } catch (e) {
+                error = `Не удалось загрузить: ${e}`;
+                selecting = null;
+            }
         }
     }
 
@@ -151,15 +110,9 @@
         if (e.target === e.currentTarget) onClose();
     }
 
-    function onInputKeydown(e: KeyboardEvent) {
-        if (e.key === "Enter") search();
-    }
-
     onMount(() => {
-        search();
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
-        };
+        if (settings.serperApiKey) search();
+        const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
         window.addEventListener("keydown", handler);
         return () => window.removeEventListener("keydown", handler);
     });
@@ -169,15 +122,51 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="backdrop" onclick={onBackdropClick}>
     <div class="modal" role="dialog" aria-modal="true">
+
         <!-- Header -->
         <div class="header">
-            <span class="title">Выбор обложки</span>
-            <button class="close-btn" onclick={onClose} aria-label="Закрыть">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                </svg>
-            </button>
+            <span class="modal-title">Выбор обложки</span>
+            <div class="header-right">
+                <button
+                    class="icon-btn"
+                    class:key-active={!!settings.serperApiKey}
+                    onclick={() => { keyDraft = settings.serperApiKey; showKeyInput = !showKeyInput; }}
+                    title="API ключ Serper"
+                >
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                    </svg>
+                </button>
+                <button class="icon-btn" onclick={onClose} aria-label="Закрыть">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
         </div>
+
+        <!-- Key panel -->
+        {#if showKeyInput}
+            <div class="key-panel">
+                <p class="key-hint">
+                    <strong>serper.dev</strong> — Google Images через API.<br>
+                    2 500 бесплатных запросов после регистрации.
+                    <a href="https://serper.dev" target="_blank" rel="noopener">Получить ключ →</a>
+                </p>
+                <div class="key-row">
+                    <input
+                        class="key-input"
+                        type="password"
+                        bind:value={keyDraft}
+                        placeholder="Вставьте API Key…"
+                        onkeydown={(e) => e.key === "Enter" && saveKey()}
+                    />
+                    <button class="key-save" onclick={saveKey} disabled={!keyDraft.trim()}>
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        {/if}
 
         <!-- Search -->
         <div class="search-row">
@@ -186,7 +175,7 @@
                 type="text"
                 bind:value={query}
                 placeholder="Название книги, автор…"
-                onkeydown={onInputKeydown}
+                onkeydown={(e) => e.key === "Enter" && search()}
                 disabled={loading || !!selecting}
             />
             <button
@@ -210,42 +199,39 @@
             {#if selecting}
                 <div class="state-center">
                     <span class="spinner spinner-dark"></span>
-                    <span class="state-text">Загружаю обложку…</span>
+                    <span class="state-text">Загружаю…</span>
                 </div>
             {:else if loading}
                 <div class="state-center">
                     <span class="spinner spinner-dark"></span>
                     <span class="state-text">Поиск…</span>
                 </div>
+            {:else if !settings.serperApiKey}
+                <div class="state-center">
+                    <span class="state-text state-muted">Введите API ключ serper.dev чтобы начать поиск</span>
+                </div>
             {:else if error && results.length === 0}
                 <div class="state-center">
-                    <span class="state-text error">{error}</span>
+                    <span class="state-text state-error">{error}</span>
                 </div>
             {:else if results.length === 0}
                 <div class="state-center">
-                    <span class="state-text muted">Введите название и нажмите «Найти»</span>
+                    <span class="state-text state-muted">Введите название и нажмите «Найти»</span>
                 </div>
             {:else}
                 {#if error}
                     <p class="error-banner">{error}</p>
                 {/if}
                 <div class="grid">
-                    {#each results as r (r.id)}
+                    {#each results as r (r.full)}
                         <button
                             class="card"
                             onclick={() => pickCover(r)}
                             title={r.title}
                             disabled={!!selecting}
                         >
-                            <div class="card-img-wrap">
-                                <img
-                                    src={r.thumbnail}
-                                    alt={r.title}
-                                    loading="lazy"
-                                />
-                                <span class="badge badge-{r.source}">
-                                    {r.source === "itunes" ? "iTunes" : "Google"}
-                                </span>
+                            <div class="img-wrap">
+                                <img src={r.thumbnail} alt={r.title} loading="lazy" />
                             </div>
                             <span class="card-title">{r.title}</span>
                         </button>
@@ -254,9 +240,7 @@
             {/if}
         </div>
 
-        <p class="attribution">
-            Источники: Apple iTunes · Google Books
-        </p>
+        <p class="attribution">Google Images via serper.dev</p>
     </div>
 </div>
 
@@ -289,18 +273,23 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 14px 16px 12px;
+        padding: 14px 14px 12px 16px;
         border-bottom: 1px solid #ececec;
         flex-shrink: 0;
     }
-    .title {
+    .modal-title {
         font-size: 15px;
         font-weight: 600;
         color: #1c1b1f;
     }
-    .close-btn {
-        width: 30px;
-        height: 30px;
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+    .icon-btn {
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         border: none;
         background: transparent;
@@ -308,12 +297,59 @@
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        color: #49454f;
+        color: #79747e;
         padding: 0;
-        transition: background 0.12s;
+        transition: background 0.12s, color 0.12s;
     }
-    .close-btn:hover { background: rgba(0,0,0,0.07); }
-    .close-btn svg { width: 18px; height: 18px; }
+    .icon-btn:hover { background: rgba(0,0,0,0.07); color: #5c6bc0; }
+    .icon-btn svg { width: 18px; height: 18px; }
+    .icon-btn.key-active { color: #43a047; }
+
+    /* Key panel */
+    .key-panel {
+        background: #f3f8ff;
+        border-bottom: 1px solid #dce8f8;
+        padding: 10px 14px 12px;
+        flex-shrink: 0;
+    }
+    .key-hint {
+        font-size: 12px;
+        color: #49454f;
+        margin: 0 0 8px;
+        line-height: 1.5;
+    }
+    .key-hint a { color: #5c6bc0; text-decoration: none; }
+    .key-hint a:hover { text-decoration: underline; }
+    .key-row { display: flex; gap: 7px; }
+    .key-input {
+        flex: 1;
+        height: 34px;
+        border: 1.5px solid #c8d8f0;
+        border-radius: 8px;
+        padding: 0 10px;
+        font-size: 12px;
+        font-family: monospace;
+        color: #1c1b1f;
+        outline: none;
+        background: #fff;
+        transition: border-color 0.15s;
+    }
+    .key-input:focus { border-color: #5c6bc0; }
+    .key-save {
+        height: 34px;
+        padding: 0 13px;
+        border-radius: 8px;
+        border: none;
+        background: #5c6bc0;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s;
+    }
+    .key-save:hover { background: #3f51b5; }
+    .key-save:disabled { opacity: 0.5; cursor: default; }
 
     /* Search */
     .search-row {
@@ -361,28 +397,21 @@
     .body {
         flex: 1;
         overflow-y: auto;
-        padding: 6px 14px 10px;
+        padding: 4px 14px 10px;
         min-height: 180px;
     }
-
     .state-center {
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: 10px;
-        padding: 52px 20px;
+        padding: 48px 20px;
     }
     .state-text { font-size: 13px; color: #79747e; text-align: center; }
-    .state-text.error { color: #c62828; }
-    .state-text.muted { color: #a0a0a8; }
-
-    .error-banner {
-        font-size: 12px;
-        color: #c62828;
-        margin: 0 0 6px;
-        padding: 0;
-    }
+    .state-error { color: #c62828; }
+    .state-muted { color: #a0a0a8; }
+    .error-banner { font-size: 12px; color: #c62828; margin: 0 0 6px; }
 
     /* Grid */
     .grid {
@@ -391,7 +420,6 @@
         gap: 10px;
         padding: 2px 0 6px;
     }
-
     .card {
         border: none;
         background: #f5f5f5;
@@ -404,40 +432,22 @@
         text-align: left;
         transition: transform 0.15s, box-shadow 0.15s;
     }
-    .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(0,0,0,0.16);
-    }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.16); }
     .card:active { transform: translateY(0); }
     .card:disabled { opacity: 0.45; cursor: default; pointer-events: none; }
 
-    .card-img-wrap {
-        position: relative;
+    .img-wrap {
         width: 100%;
         aspect-ratio: 2/3;
-        background: #e8e8e8;
+        background: #e4e4e4;
         overflow: hidden;
     }
-    .card-img-wrap img {
+    .img-wrap img {
         width: 100%;
         height: 100%;
         object-fit: cover;
         display: block;
     }
-
-    .badge {
-        position: absolute;
-        bottom: 4px;
-        left: 4px;
-        font-size: 9px;
-        font-weight: 600;
-        padding: 2px 5px;
-        border-radius: 4px;
-        letter-spacing: 0.02em;
-    }
-    .badge-itunes { background: rgba(0,0,0,0.55); color: #fff; }
-    .badge-google { background: rgba(66,133,244,0.75); color: #fff; }
-
     .card-title {
         padding: 5px 7px 6px;
         font-size: 10px;
@@ -453,9 +463,9 @@
     /* Attribution */
     .attribution {
         font-size: 11px;
-        color: #b8b8b8;
+        color: #c0c0c0;
         text-align: center;
-        padding: 5px 14px 11px;
+        padding: 4px 14px 10px;
         flex-shrink: 0;
         margin: 0;
     }

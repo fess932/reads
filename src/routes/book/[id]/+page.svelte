@@ -11,8 +11,8 @@
 
     let showCoverPicker = $state(false);
 
-    function onCoverSelected(dataUrl: string) {
-        updateBookCover(book.id, dataUrl);
+    async function onCoverSelected(dataUrl: string) {
+        await updateBookCover(book.id, dataUrl);
         book.cover = dataUrl;
         book.coverIsImage = true;
         showCoverPicker = false;

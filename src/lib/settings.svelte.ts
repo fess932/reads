@@ -1,28 +1,32 @@
-const SETTINGS_KEY = "reads-settings";
+import { initDb, loadSetting, saveSetting } from "./db";
 
 export type FontSize = "normal" | "large" | "xlarge";
 
-export const settings = $state<{ fontSize: FontSize }>({
+export const settings = $state<{ fontSize: FontSize; serperApiKey: string }>({
   fontSize: "normal",
+  serperApiKey: "",
 });
 
-export function initSettings() {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    if (saved.fontSize) settings.fontSize = saved.fontSize;
-  } catch {
-    // ignore
-  }
+export async function initSettings() {
+  await initDb();
+  const fontSize = await loadSetting("fontSize");
+  const serperApiKey = await loadSetting("serperApiKey");
+  if (fontSize) settings.fontSize = fontSize as FontSize;
+  if (serperApiKey) settings.serperApiKey = serperApiKey;
 }
 
-export function saveSettings() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify({ fontSize: settings.fontSize }));
+export async function saveSettings() {
+  await saveSetting("fontSize", settings.fontSize);
+  await saveSetting("serperApiKey", settings.serperApiKey);
 }
 
 export function setFontSize(size: FontSize) {
   settings.fontSize = size;
+  saveSettings();
+}
+
+export function setSerperApiKey(key: string) {
+  settings.serperApiKey = key.trim();
   saveSettings();
 }
 

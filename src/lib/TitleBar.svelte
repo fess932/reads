@@ -2,6 +2,7 @@
     import { getCurrentWindow } from "@tauri-apps/api/window";
     import { onMount, onDestroy } from "svelte";
     import { settings, setFontSize, type FontSize } from "./settings.svelte";
+    import { savePlayerState } from "./player.svelte";
 
     const appWindow = getCurrentWindow();
 
@@ -125,7 +126,7 @@
 
         <button
             class="icon-btn icon-btn-close"
-            onclick={() => appWindow.close()}
+            onclick={async () => { await savePlayerState(); appWindow.close(); }}
             title="Закрыть"
         >
             <svg viewBox="0 0 20 20" aria-hidden="true">

@@ -10,19 +10,19 @@
         importing = true;
         try {
             const book = await importBookFromFolder();
-            if (book) addBook(book);
+            if (book) await addBook(book);
         } finally {
             importing = false;
         }
     }
 
-    function handleDelete(e: MouseEvent, bookId: string) {
+    async function handleDelete(e: MouseEvent, bookId: string) {
         e.stopPropagation();
         if (player.book?.id === bookId) {
             player.book = null;
             player.isPlaying = false;
         }
-        removeBook(bookId);
+        await removeBook(bookId);
     }
 
     /** Сколько глав прослушано ≥95% */

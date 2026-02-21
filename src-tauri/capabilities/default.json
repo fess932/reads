@@ -11,6 +11,9 @@
     "core:window:allow-close",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-select"
   ]
 }

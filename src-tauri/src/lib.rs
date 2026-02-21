@@ -25,16 +25,26 @@ fn scan_folder(path: String) -> Result<Vec<FileEntry>, String> {
 #[tauri::command]
 async fn download_image(url: String) -> Result<String, String> {
     let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(format!("HTTP {}", response.status()));
+    }
+
     let content_type = response
         .headers()
         .get(reqwest::header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("image/jpeg")
+        .unwrap_or("")
         .split(';')
         .next()
-        .unwrap_or("image/jpeg")
+        .unwrap_or("")
         .trim()
         .to_string();
+
+    if !content_type.starts_with("image/") {
+        return Err(format!("not an image ({})", content_type));
+    }
+
     let bytes = response.bytes().await.map_err(|e| e.to_string())?;
     let b64 = STANDARD.encode(&bytes);
     Ok(format!("data:{};base64,{}", content_type, b64))
@@ -45,6 +55,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![scan_folder, download_image])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

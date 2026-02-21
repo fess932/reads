@@ -1,14 +1,5 @@
 import type { Book } from "./books";
-
-const PLAYER_KEY = "reads-player";
-
-interface SavedState {
-  bookId: string;
-  currentIndex: number;
-  progress: number;
-  volume: number;
-  chapterProgress: Record<string, number>;
-}
+import { loadPlayerState, savePlayerStateToDb } from "./db";
 
 export const player = $state({
   book: null as Book | null,
@@ -34,36 +25,47 @@ function flushCurrentProgress() {
 
 /** Обновляем player.progress из map для новой главы */
 function restoreChapterProgress(bookId: string, index: number) {
-  player.progress = player.chapterProgress[chapterKey(bookId, index)] ?? 0;
+  const saved = player.chapterProgress[chapterKey(bookId, index)] ?? 0;
+  const duration = player.book?.chapters[index]?.duration ?? 0;
+  if (duration > 0 && saved / duration >= 0.95) {
+    player.progress = Math.max(0, duration - 10);
+  } else {
+    player.progress = saved;
+  }
 }
 
-export function savePlayerState() {
+export async function savePlayerState() {
   if (!player.book) return;
-  const state: SavedState = {
-    bookId: player.book.id,
-    currentIndex: player.currentIndex,
-    progress: player.progress,
-    volume: player.volume,
-    chapterProgress: player.chapterProgress,
-  };
-  localStorage.setItem(PLAYER_KEY, JSON.stringify(state));
+  try {
+    await savePlayerStateToDb({
+      bookId: player.book.id,
+      currentIndex: player.currentIndex,
+      progress: player.progress,
+      volume: player.volume,
+      chapterProgress: player.chapterProgress,
+    });
+  } catch (e) {
+    console.error("[player] failed to save state:", e);
+  }
 }
 
-export function restorePlayerState(books: Book[]) {
+export async function restorePlayerState(books: Book[]) {
   try {
-    const raw = localStorage.getItem(PLAYER_KEY);
-    if (!raw) return;
-    const saved: SavedState = JSON.parse(raw);
+    const saved = await loadPlayerState();
+    if (!saved) return;
     const book = books.find((b) => b.id === saved.bookId);
     if (!book) return;
     player.chapterProgress = saved.chapterProgress ?? {};
     player.book = book;
-    player.currentIndex = Math.min(saved.currentIndex, book.chapters.length - 1);
+    player.currentIndex = Math.min(
+      saved.currentIndex,
+      book.chapters.length - 1,
+    );
     player.progress = saved.progress;
     player.volume = saved.volume;
     player.isPlaying = true;
-  } catch {
-    // ignore corrupt state
+  } catch (e) {
+    console.error("[player] failed to restore state:", e);
   }
 }
 
