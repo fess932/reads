@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd C:\\\\Users\\\\fess9\\\\git\\\\reads:*)",
+      "Bash(cd:*)",
+      "Bash(tail:*)"
+    ]
+  }
+}

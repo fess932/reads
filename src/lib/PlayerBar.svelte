@@ -76,6 +76,15 @@
         isScrubbing = false;
     }
 
+    function seekBy(delta: number) {
+        if (!player.book) return;
+        const chapter = player.book.chapters[player.currentIndex];
+        const max = chapter.duration || 0;
+        const newProg = Math.max(0, Math.min(max, player.progress + delta));
+        updateProgress(newProg);
+        if (audioEl && hasRealAudio) audioEl.currentTime = newProg;
+    }
+
     function onKeyDown(e: KeyboardEvent) {
         if (e.code === "Space" && player.book) {
             e.preventDefault();
@@ -125,9 +134,15 @@
         <!-- Controls + Volume -->
         <div class="controls-row">
             <div class="transport">
-                <button class="ctrl-btn" onclick={skipPrev} title="Назад">
+                <button class="ctrl-btn" onclick={skipPrev} title="Предыдущая глава">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
+                    </svg>
+                </button>
+                <button class="ctrl-btn seek-btn" onclick={() => seekBy(-15)} title="-15 сек">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/>
+                        <text x="12" y="16.5" fill="currentColor" font-size="5.5" text-anchor="middle" font-weight="700" font-family="sans-serif">15</text>
                     </svg>
                 </button>
                 <button class="play-btn" onclick={togglePlay}>
@@ -141,7 +156,13 @@
                         </svg>
                     {/if}
                 </button>
-                <button class="ctrl-btn" onclick={skipNext} title="Вперёд">
+                <button class="ctrl-btn seek-btn" onclick={() => seekBy(15)} title="+15 сек">
+                    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M18 13c0 3.31-2.69 6-6 6s-6-2.69-6-6 2.69-6 6-6v4l5-5-5-5v4c-4.42 0-8 3.58-8 8s3.58 8 8 8 8-3.58 8-8h-2z"/>
+                        <text x="12" y="16.5" fill="currentColor" font-size="5.5" text-anchor="middle" font-weight="700" font-family="sans-serif">15</text>
+                    </svg>
+                </button>
+                <button class="ctrl-btn" onclick={skipNext} title="Следующая глава">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                         <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
                     </svg>
@@ -312,6 +333,11 @@
     .ctrl-btn svg {
         width: 24px;
         height: 24px;
+    }
+
+    .seek-btn svg {
+        width: 22px;
+        height: 22px;
     }
 
     .play-btn {

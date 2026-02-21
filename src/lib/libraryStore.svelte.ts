@@ -40,3 +40,11 @@ export function removeBook(id: string) {
   const imported = library.books.filter((b) => b.id.startsWith("imported-"));
   saveImported(imported);
 }
+
+export function updateBookCover(bookId: string, cover: string) {
+  library.books = library.books.map((b) =>
+    b.id === bookId ? { ...b, cover, coverIsImage: true } : b
+  );
+  const imported = library.books.filter((b) => b.id.startsWith("imported-"));
+  saveImported(imported);
+}

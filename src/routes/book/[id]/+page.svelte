@@ -2,10 +2,21 @@
     import { goto } from "$app/navigation";
     import { formatTime } from "$lib/books";
     import { player, playChapter } from "$lib/player.svelte";
+    import { updateBookCover } from "$lib/libraryStore.svelte";
+    import CoverPicker from "$lib/CoverPicker.svelte";
     import type { PageData } from "./$types";
 
     let { data }: { data: PageData } = $props();
     const { book } = data;
+
+    let showCoverPicker = $state(false);
+
+    function onCoverSelected(dataUrl: string) {
+        updateBookCover(book.id, dataUrl);
+        book.cover = dataUrl;
+        book.coverIsImage = true;
+        showCoverPicker = false;
+    }
 
     function isActive(index: number) {
         return player.book?.id === book.id && player.currentIndex === index;
@@ -37,13 +48,41 @@
                 />
             </svg>
         </button>
-        <div class="cover-small" style="background: {book.cover}"></div>
+        <div class="cover-wrap">
+            <div
+                class="cover-small"
+                class:cover-image={book.coverIsImage}
+                style={book.coverIsImage
+                    ? `background-image: url('${book.cover}')`
+                    : `background: ${book.cover}`}
+            ></div>
+            <button
+                class="edit-cover-btn"
+                onclick={() => (showCoverPicker = true)}
+                title="Сменить обложку"
+                aria-label="Сменить обложку"
+            >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+            </button>
+        </div>
         <div class="book-meta">
             <h1 class="book-title">{book.title}</h1>
             <p class="book-author">{book.author}</p>
             <p class="book-sub">{book.chapters.length} глав · {book.year}</p>
         </div>
     </div>
+
+    <!-- Cover picker modal -->
+    {#if showCoverPicker}
+        <CoverPicker
+            bookTitle={book.title}
+            bookAuthor={book.author}
+            onSelect={onCoverSelected}
+            onClose={() => (showCoverPicker = false)}
+        />
+    {/if}
 
     <!-- Chapter list -->
     <div class="section-label">Главы</div>
@@ -113,12 +152,47 @@
     .back-btn:hover { background: rgba(0, 0, 0, 0.07); }
     .back-btn svg { width: 20px; height: 20px; }
 
+    .cover-wrap {
+        position: relative;
+        flex-shrink: 0;
+    }
+
     .cover-small {
         width: 48px;
         height: 64px;
         border-radius: 6px;
-        flex-shrink: 0;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .cover-image {
+        background-size: cover;
+        background-position: center;
+    }
+
+    .edit-cover-btn {
+        position: absolute;
+        inset: 0;
+        border-radius: 6px;
+        border: none;
+        background: rgba(0, 0, 0, 0);
+        color: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .edit-cover-btn svg {
+        width: 18px;
+        height: 18px;
+        filter: drop-shadow(0 1px 3px rgba(0,0,0,0.5));
+    }
+
+    .cover-wrap:hover .edit-cover-btn {
+        background: rgba(0, 0, 0, 0.45);
+        color: #fff;
     }
 
     .book-meta {

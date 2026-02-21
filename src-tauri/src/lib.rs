@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -20,12 +22,30 @@ fn scan_folder(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(files)
 }
 
+#[tauri::command]
+async fn download_image(url: String) -> Result<String, String> {
+    let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .split(';')
+        .next()
+        .unwrap_or("image/jpeg")
+        .trim()
+        .to_string();
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    let b64 = STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", content_type, b64))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan_folder])
+        .invoke_handler(tauri::generate_handler![scan_folder, download_image])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
