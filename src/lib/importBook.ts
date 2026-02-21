@@ -4,6 +4,10 @@ import { join } from "@tauri-apps/api/path";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type { Book } from "./books";
 
+async function readImageAsDataUrl(filePath: string): Promise<string> {
+  return await invoke<string>("read_file_base64", { path: filePath });
+}
+
 interface FileEntry {
   name: string;
   is_dir: boolean;
@@ -96,7 +100,8 @@ export async function importBookFromFolder(): Promise<Book | null> {
   let cover: string;
   let coverIsImage = false;
   if (coverEntry) {
-    cover = convertFileSrc(await join(folderPath, coverEntry.name));
+    const coverPath = await join(folderPath, coverEntry.name);
+    cover = await readImageAsDataUrl(coverPath);
     coverIsImage = true;
   } else {
     cover = hashGradient(title);

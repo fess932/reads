@@ -3,6 +3,7 @@
     import { library, addBook, removeBook } from "$lib/libraryStore.svelte";
     import { player } from "$lib/player.svelte";
     import { importBookFromFolder } from "$lib/importBook";
+    import type { Chapter } from "$lib/books";
 
     let importing = $state(false);
 
@@ -28,7 +29,6 @@
     /** Сколько глав прослушано ≥95% */
     function doneCount(bookId: string, chaptersLen: number): number {
         let n = 0;
-        // Нужна длительность — берём из library
         const book = library.books.find(b => b.id === bookId);
         if (!book) return 0;
         for (let i = 0; i < chaptersLen; i++) {
@@ -38,6 +38,24 @@
             if (prog / dur >= 0.95) n++;
         }
         return n;
+    }
+
+    function formatDuration(seconds: number): string {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        if (h > 0) return `${h}ч ${m}м`;
+        return `${m}м`;
+    }
+
+    function totalDuration(chapters: Chapter[]): number {
+        return chapters.reduce((sum, ch) => sum + (ch.duration || 0), 0);
+    }
+
+    function listenedTime(bookId: string, chapters: Chapter[]): number {
+        return chapters.reduce((sum, ch, i) => {
+            const prog = player.chapterProgress[`${bookId}_${i}`] ?? 0;
+            return sum + Math.min(prog, ch.duration || 0);
+        }, 0);
     }
 </script>
 
@@ -60,6 +78,9 @@
         {#each library.books as book (book.id)}
             {@const done = doneCount(book.id, book.chapters.length)}
             {@const pct = book.chapters.length ? Math.round(done / book.chapters.length * 100) : 0}
+            {@const total = totalDuration(book.chapters)}
+            {@const listened = listenedTime(book.id, book.chapters)}
+            {@const remaining = total - listened}
             <div class="card" role="button" tabindex="0"
                 onclick={() => goto(`/book/${book.id}`)}
                 onkeydown={(e) => e.key === 'Enter' && goto(`/book/${book.id}`)}>
@@ -71,6 +92,17 @@
                         ? `background-image: url('${book.cover}')`
                         : `background: ${book.cover}`}
                 >
+                    <!-- Бейдж времени -->
+                    {#if total > 0}
+                        <div class="time-badge">
+                            {#if listened > 30}
+                                {formatDuration(remaining)}
+                            {:else}
+                                {formatDuration(total)}
+                            {/if}
+                        </div>
+                    {/if}
+
                     <!-- Прогресс-полоска -->
                     {#if pct > 0}
                         <div class="progress-bar" style="width: {pct}%"></div>
@@ -91,9 +123,13 @@
                 <div class="info">
                     <span class="title">{book.title}</span>
                     <span class="author">{book.author}</span>
-                    {#if done > 0}
-                        <span class="progress-label">{done} из {book.chapters.length} глав</span>
-                    {/if}
+                    <span class="chapters-label">
+                        {#if done > 0}
+                            {done} из {book.chapters.length} гл.
+                        {:else}
+                            {book.chapters.length} гл.
+                        {/if}
+                    </span>
                 </div>
             </div>
         {/each}
@@ -198,6 +234,23 @@
         background-position: center;
     }
 
+    /* Бейдж времени на обложке */
+    .time-badge {
+        position: absolute;
+        bottom: 8px;
+        left: 8px;
+        padding: 2px 7px;
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.52);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
+        pointer-events: none;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+    }
+
     /* Прогресс-полоска внизу обложки */
     .progress-bar {
         position: absolute;
@@ -268,7 +321,7 @@
         text-overflow: ellipsis;
     }
 
-    .progress-label {
+    .chapters-label {
         font-size: var(--text-2xs);
         color: #5c6bc0;
         font-weight: 500;

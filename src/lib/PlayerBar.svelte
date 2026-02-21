@@ -38,6 +38,11 @@
         }
     });
 
+    // ── Эффект 3: громкость
+    $effect(() => {
+        if (audioEl) audioEl.volume = player.volume / 100;
+    });
+
     // ── Mock timer для статических книг ─────────────────────────────────────
     $effect(() => {
         if (hasRealAudio) { clearInterval(mockTimer); return; }

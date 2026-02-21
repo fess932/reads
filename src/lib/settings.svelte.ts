@@ -35,8 +35,8 @@ export function fontSizeVars(size: FontSize): string {
   const scales: Record<FontSize, number[]> = {
     //          2xs  xs   sm   md   base  lg
     normal: [10, 11, 12, 13, 14, 15],
-    large:  [12, 13, 14, 15, 16, 17],
-    xlarge: [14, 15, 16, 17, 18, 19],
+    large: [12, 13, 14, 15, 16, 17],
+    xlarge: [16, 17, 18, 19, 20, 21],
   };
   const [twoXs, xs, sm, md, base, lg] = scales[size];
   return [

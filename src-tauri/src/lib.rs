@@ -9,6 +9,21 @@ struct FileEntry {
 }
 
 #[tauri::command]
+fn read_file_base64(path: String) -> Result<String, String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
+    let mime = match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        _ => "image/jpeg",
+    };
+    let b64 = STANDARD.encode(&bytes);
+    Ok(format!("data:{};base64,{}", mime, b64))
+}
+
+#[tauri::command]
 fn scan_folder(path: String) -> Result<Vec<FileEntry>, String> {
     let entries = std::fs::read_dir(&path).map_err(|e| e.to_string())?;
     let mut files: Vec<FileEntry> = entries
@@ -53,10 +68,11 @@ async fn download_image(url: String) -> Result<String, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![scan_folder, download_image])
+        .invoke_handler(tauri::generate_handler![scan_folder, download_image, read_file_base64])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
