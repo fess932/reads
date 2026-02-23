@@ -6,6 +6,18 @@
     import type { Chapter } from "$lib/books";
 
     let importing = $state(false);
+    let sortByLastPlayed = $state(true);
+
+    let sortedBooks = $derived(
+        sortByLastPlayed
+            ? [...library.books].sort((a, b) => {
+                const la = player.lastPlayed[a.id] ?? 0;
+                const lb = player.lastPlayed[b.id] ?? 0;
+                if (lb !== la) return lb - la;
+                return a.title.localeCompare(b.title);
+              })
+            : library.books
+    );
 
     async function handleImport() {
         importing = true;
@@ -62,7 +74,18 @@
 <div class="library">
     <div class="toolbar">
         <p class="subtitle">Аудиокниги</p>
-        <button class="import-btn" onclick={handleImport} disabled={importing}>
+        <div class="toolbar-right">
+            <button
+                class="sort-btn"
+                class:active={sortByLastPlayed}
+                onclick={() => sortByLastPlayed = !sortByLastPlayed}
+                title={sortByLastPlayed ? 'Сортировка: последнее воспроизведение' : 'Сортировка: порядок добавления'}
+            >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+                </svg>
+            </button>
+            <button class="import-btn" onclick={handleImport} disabled={importing}>
             {#if importing}
                 <span class="spinner"></span>
             {:else}
@@ -71,11 +94,12 @@
                 </svg>
             {/if}
             Добавить книгу
-        </button>
+            </button>
+        </div>
     </div>
 
     <div class="grid">
-        {#each library.books as book (book.id)}
+        {#each sortedBooks as book (book.id)}
             {@const done = doneCount(book.id, book.chapters.length)}
             {@const pct = book.chapters.length ? Math.round(done / book.chapters.length * 100) : 0}
             {@const total = totalDuration(book.chapters)}
@@ -158,6 +182,31 @@
         text-transform: uppercase;
         color: #79747e;
     }
+
+    .toolbar-right {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sort-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        border: none;
+        background: transparent;
+        color: #79747e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background 0.15s, color 0.15s;
+    }
+
+    .sort-btn svg { width: 20px; height: 20px; }
+    .sort-btn:hover { background: rgba(92, 107, 192, 0.12); color: #5c6bc0; }
+    .sort-btn.active { color: #5c6bc0; }
 
     .import-btn {
         display: flex;

@@ -1,6 +1,6 @@
 import { type Book } from "./books";
-import { loadAllBooks, upsertBook, deleteBook, saveBookCover } from "./db";
-import { restorePlayerState } from "./player.svelte";
+import { loadAllBooks, upsertBook, deleteBook, saveBookCover, loadLastPlayedMap } from "./db";
+import { player, restorePlayerState } from "./player.svelte";
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ export const library = $state<{ books: Book[] }>({
 
 export async function initLibrary() {
   library.books = await loadAllBooks();
+  player.lastPlayed = await loadLastPlayedMap();
   await restorePlayerState(library.books);
 }
 

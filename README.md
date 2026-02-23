@@ -1,7 +1,32 @@
-# Tauri + SvelteKit + TypeScript
+![Preview](doc/preview.jpg)
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+# Reads
 
-## Recommended IDE Setup
+Desktop audiobook player.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+## Features
+
+- Import audiobooks from local folders
+- Custom player with chapter navigation and progress tracking
+- Per-chapter progress saved to disk
+- Sort library by last played time
+- Cover art support
+
+## Stack
+
+- [Tauri 2](https://tauri.app) — desktop shell
+- [Svelte 5](https://svelte.dev) + SvelteKit — UI
+- SQLite (via `@tauri-apps/plugin-sql`) — local storage
+- TypeScript
+
+## Development
+
+```bash
+bun run tauri dev
+```
+
+## Build
+
+```bash
+bun run tauri build
+```

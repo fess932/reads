@@ -1,5 +1,5 @@
 import type { Book } from "./books";
-import { loadPlayerState, savePlayerStateToDb } from "./db";
+import { loadPlayerState, savePlayerStateToDb, updateBookLastPlayed } from "./db";
 
 export const player = $state({
   book: null as Book | null,
@@ -9,6 +9,8 @@ export const player = $state({
   volume: 80,
   /** "bookId_chapterIndex" → позиция в секундах */
   chapterProgress: {} as Record<string, number>,
+  /** bookId → unix timestamp последнего воспроизведения */
+  lastPlayed: {} as Record<string, number>,
 });
 
 function chapterKey(bookId: string, index: number) {
@@ -84,6 +86,8 @@ export function playChapter(book: Book, index: number) {
   player.currentIndex = index;
   restoreChapterProgress(book.id, index);
   player.isPlaying = true;
+  player.lastPlayed = { ...player.lastPlayed, [book.id]: Math.floor(Date.now() / 1000) };
+  updateBookLastPlayed(book.id); // fire-and-forget
 }
 
 export function togglePlay() {

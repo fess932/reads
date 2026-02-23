@@ -43,6 +43,12 @@ export async function initDb(): Promise<void> {
     )
   `);
 
+  try {
+    await db.execute(
+      "ALTER TABLE books ADD COLUMN last_played_at INTEGER NOT NULL DEFAULT 0"
+    );
+  } catch {} // column already exists — ignore
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS player_state (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -178,6 +184,23 @@ export async function upsertBook(book: Book): Promise<void> {
       [book.id, book.cover]
     );
   }
+}
+
+export async function loadLastPlayedMap(): Promise<Record<string, number>> {
+  const rows = await getDb().select<{ id: string; last_played_at: number }[]>(
+    "SELECT id, last_played_at FROM books"
+  );
+  const map: Record<string, number> = {};
+  for (const r of rows) map[r.id] = r.last_played_at;
+  return map;
+}
+
+export async function updateBookLastPlayed(bookId: string): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  await getDb().execute(
+    "UPDATE books SET last_played_at = $1 WHERE id = $2",
+    [now, bookId]
+  );
 }
 
 export async function deleteBook(id: string): Promise<void> {
